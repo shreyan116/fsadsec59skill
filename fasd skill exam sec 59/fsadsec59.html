@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Maven Hibernate HQL Ticket Project — full explanation</title>
+<style>
+body{
+    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+    background:#f0f4f8;
+    margin:40px;
+    line-height:1.5;
+}
+h1{
+    color:#0b3b5c;
+    border-bottom:2px solid #2c7da0;
+    padding-bottom:10px;
+}
+h2{
+    color:#1e4a6d;
+    margin-top:25px;
+}
+pre{
+    background:#1e2b36;
+    color:#b9f3ff;
+    font-family:'JetBrains Mono', 'Cascadia Code', monospace;
+    padding:18px;
+    border-radius:10px;
+    overflow:auto;
+    border-left:5px solid #3b8cba;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+}
+.section{
+    background:white;
+    padding:20px 30px;
+    margin-bottom:30px;
+    border-radius:16px;
+    box-shadow:0 8px 20px rgba(0,20,40,0.08);
+}
+.note{
+    background:#e6f2ff;
+    padding:12px 18px;
+    border-radius:10px;
+    border-left:5px solid #2c7da0;
+    margin:20px 0;
+}
+.badge{
+    background:#12455f;
+    color:white;
+    padding:5px 12px;
+    border-radius:30px;
+    font-size:0.85rem;
+    display:inline-block;
+    margin-right:10px;
+}
+</style>
+</head>
+<body>
+
+<h1>🎫 Hibernate HQL Ticket Management (Maven Project)</h1>
+<p><strong>Package:</strong> <code>com.klef.fsad.exam</code>  |  <strong>Database:</strong> <code>fsadexam</code>  |  <strong>Technology:</strong> Hibernate ORM + HQL</p>
+
+<div class="section">
+    <h2>📁 1. Project structure overview (Maven)</h2>
+    <p>Typical Maven layout with Hibernate 5.x (JPA annotations):</p>
+    <pre>
+src/main/java
+    └── com/klef/fsad/exam/
+            ├── Ticket.java          (entity)
+            └── ClientDemo.java      (HQL insert/update)
+
+src/main/resources
+    ├── hibernate.cfg.xml            (DB connection, dialect, mapping)
+    └── ...
+
+pom.xml                               (dependencies: hibernate-core, mysql-connector, etc.)
+    </pre>
+    <div class="note">
+        ✅ <strong>Database name:</strong> <code>fsadexam</code> (expected to exist in MySQL/PostgreSQL).<br>
+        ✅ <strong>Table name:</strong> by default <code>Ticket</code> (or <code>ticket</code> depending on dialect).
+    </div>
+</div>
+
+<div class="section">
+    <h2>📄 2. Ticket.java (Entity class)</h2>
+    <p>JPA annotated entity — fields match the table columns. Uses <code>javax.persistence</code> (compatible with Hibernate 5).</p>
+    <pre>
+package com.klef.fsad.exam;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
+@Entity
+public class Ticket
+{
+    @Id
+    private int id;                 // primary key
+    private String name;             // ticket description / title
+    private String date;             // ISO format (e.g. 2026-03-12)
+    private String status;           // Booked, Confirmed, Cancelled, etc.
+
+    public Ticket() {}               // mandatory no-arg constructor
+
+    // ---------- getters / setters ----------
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getDate() { return date; }
+    public void setDate(String date) { this.date = date; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+}
+    </pre>
+    <p><span class="badge">Note</span> The date is stored as String for simplicity; in production you may use <code>java.time.LocalDate</code> + converter.</p>
+</div>
+
+<div class="section">
+    <h2>⚙️ 3. hibernate.cfg.xml (essential configuration)</h2>
+    <p>Placed in <code>src/main/resources</code>. Adjust URL, credentials, dialect according to your DB.</p>
+    <pre>
+&lt;!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd"&gt;
+&lt;hibernate-configuration&gt;
+    &lt;session-factory&gt;
+        &lt;!-- Database connection (MySQL example) --&gt;
+        &lt;property name="hibernate.connection.driver_class"&gt;com.mysql.cj.jdbc.Driver&lt;/property&gt;
+        &lt;property name="hibernate.connection.url"&gt;jdbc:mysql://localhost:3306/fsadexam&lt;/property&gt;
+        &lt;property name="hibernate.connection.username"&gt;root&lt;/property&gt;
+        &lt;property name="hibernate.connection.password"&gt;yourpassword&lt;/property&gt;
+
+        &lt;!-- Hibernate properties --&gt;
+        &lt;property name="hibernate.dialect"&gt;org.hibernate.dialect.MySQL8Dialect&lt;/property&gt;
+        &lt;property name="hibernate.show_sql"&gt;true&lt;/property&gt;
+        &lt;property name="hibernate.format_sql"&gt;true&lt;/property&gt;
+        &lt;property name="hibernate.hbm2ddl.auto"&gt;update&lt;/property&gt;  &lt;!-- auto-create tables --&gt;
+
+        &lt;!-- Entity mapping --&gt;
+        &lt;mapping class="com.klef.fsad.exam.Ticket"/&gt;
+    &lt;/session-factory&gt;
+&lt;/hibernate-configuration&gt;
+    </pre>
+</div>
+
+<div class="section">
+    <h2>▶️ 4. ClientDemo.java — HQL insert & update</h2>
+    <p>Inserts a new ticket using <code>session.save()</code>, then performs an HQL update with positional parameters. 
+    <strong>Important:</strong> HQL uses bean property names, not table columns. The query updates fields <code>name</code> and <code>status</code> where <code>id</code> matches.</p>
+    <pre>
+package com.klef.fsad.exam;
+
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
+import org.hibernate.cfg.Configuration;
+import org.hibernate.query.Query;          // Hibernate 5+ Query interface
+
+public class ClientDemo
+{
+    public static void main(String[] args)
+    {
+        // 1. Build SessionFactory from hibernate.cfg.xml
+        Configuration cfg = new Configuration();
+        cfg.configure("hibernate.cfg.xml");      // reads configuration
+        SessionFactory sf = cfg.buildSessionFactory();
+
+        // 2. First session: insert a record
+        Session session1 = sf.openSession();
+        Transaction tx1 = session1.beginTransaction();
+
+        Ticket t = new Ticket();
+        t.setId(1);
+        t.setName("Movie Ticket");
+        t.setDate("2026-03-12");
+        t.setStatus("Booked");
+
+        session1.save(t);                         // insert into Ticket table
+        tx1.commit();
+        System.out.println("✅ Ticket Inserted (ID: 1)");
+        session1.close();
+
+        // 3. Second session: HQL update
+        Session session2 = sf.openSession();
+        Transaction tx2 = session2.beginTransaction();
+
+        // HQL update using positional parameters (?1, ?2, ?3)
+        String hql = "update Ticket set name=?1, status=?2 where id=?3";
+
+        Query q = session2.createQuery(hql);
+        q.setParameter(1, "Flight Ticket");       // ?1 → name
+        q.setParameter(2, "Confirmed");           // ?2 → status
+        q.setParameter(3, 1);                      // ?3 → id = 1
+
+        int result = q.executeUpdate();            // executes the update
+        System.out.println("🔁 " + result + " record updated (HQL)");
+
+        tx2.commit();
+        session2.close();
+        sf.close();
+    }
+}
+    </pre>
+
+    <p><strong>Console output (expected):</strong></p>
+    <pre style="background:#0f2a33; color:#a0e7b0;">
+Hibernate: insert into Ticket (date, name, status, id) values (?, ?, ?, ?)
+✅ Ticket Inserted (ID: 1)
+Hibernate: update Ticket set name=?, status=? where id=?
+🔁 1 record updated (HQL)
+    </pre>
+    <div class="note">
+        ⚠️ <strong>HQL parameter style:</strong> <code>?1, ?2</code> (indexed parameters) works in Hibernate 5. 
+        For Hibernate 6+ prefer <code>:name</code> style, but the code above is compatible with Hibernate 5.x.
+    </div>
+</div>
+
+<div class="section">
+    <h2>📦 5. Maven dependencies (pom.xml snippet)</h2>
+    <pre>
+&lt;dependencies&gt;
+    &lt;!-- Hibernate ORM core --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.hibernate&lt;/groupId&gt;
+        &lt;artifactId&gt;hibernate-core&lt;/artifactId&gt;
+        &lt;version&gt;5.6.15.Final&lt;/version&gt;    &lt;!-- stable 5.x --&gt;
+    &lt;/dependency&gt;
+
+    &lt;!-- MySQL driver (change if using another DB) --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.mysql&lt;/groupId&gt;
+        &lt;artifactId&gt;mysql-connector-j&lt;/artifactId&gt;
+        &lt;version&gt;8.0.33&lt;/version&gt;
+    &lt;/dependency&gt;
+
+    &lt;!-- (optional) JPA API if not transitive --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;javax.persistence&lt;/groupId&gt;
+        &lt;artifactId&gt;javax.persistence-api&lt;/artifactId&gt;
+        &lt;version&gt;2.2&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+    </pre>
+</div>
+
+<div class="section">
+    <h2>🧪 6. How to run & verify</h2>
+    <ol style="font-size:1.1rem;">
+        <li>Create a MySQL database named <code>fsadexam</code>.</li>
+        <li>Update <code>hibernate.cfg.xml</code> with your DB credentials.</li>
+        <li>Run <code>mvn clean compile exec:java -Dexec.mainClass="com.klef.fsad.exam.ClientDemo"</code> (or run from IDE).</li>
+        <li>Check the table <code>Ticket</code> after execution: row with id=1 should have name = "Flight Ticket", status = "Confirmed".</li>
+    </ol>
+    <p><strong>💡 Verification SQL:</strong></p>
+    <pre style="background:#102331;">SELECT * FROM Ticket WHERE id = 1;
+-- result: 1, 'Flight Ticket', '2026-03-12', 'Confirmed'</pre>
+</div>
+
+<div class="section">
+    <h2>📚 Additional HQL examples (for practice)</h2>
+    <p>Other common HQL operations you can add to <code>ClientDemo</code>:</p>
+    <pre>
+// SELECT query (after insert)
+String hqlSelect = "from Ticket where status = :st";
+Query&lt;Ticket&gt; selectQ = session.createQuery(hqlSelect, Ticket.class);
+selectQ.setParameter("st", "Confirmed");
+List&lt;Ticket&gt; list = selectQ.list();
+
+// DELETE query
+String hqlDelete = "delete from Ticket where id = ?1";
+Query deleteQ = session.createQuery(hqlDelete);
+deleteQ.setParameter(1, 1);
+int deleted = deleteQ.executeUpdate();
+
+// Aggregate query
+String hqlCount = "select count(*) from Ticket where status = 'Booked'";
+Long count = (Long) session.createQuery(hqlCount).uniqueResult();
+    </pre>
+</div>
+
+<div style="background:#d9eaf5; border-radius:20px; padding:15px; text-align:center; margin-top:30px;">
+    ✅ <strong>Project ready</strong> — Complete Hibernate + HQL demo for ticket management. 
+    Package <code>com.klef.fsad.exam</code> — DB <code>fsadexam</code>.
+</div>
+
+</body>
+</html>
